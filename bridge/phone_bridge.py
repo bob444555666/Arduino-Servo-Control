@@ -1,65 +1,71 @@
 import argparse
 import asyncio
 import json
-import signal
-import sys
+import time
 
 import serial
-from websockets.asyncio.server import serve
+import websockets
+
+DEFAULT_SERVER = "wss://servo-room-server.heyboernathan.workers.dev"
+
+def valid_command(command):
+    if command in ("STOP", "SWEEP:START", "SWEEP:STOP"):
+        return True
+    try:
+        key, value = command.split(":", 1)
+        number = int(value)
+        if key == "ANGLE":
+            return 0 <= number <= 180
+        if key == "SPEED":
+            return 1 <= number <= 180
+    except (ValueError, TypeError):
+        pass
+    return False
 
 async def main():
-    parser = argparse.ArgumentParser(description="Secure phone-to-Arduino USB bridge")
+    parser = argparse.ArgumentParser(description="Connect your USB Arduino to a Cloudflare servo room")
     parser.add_argument("--port", required=True, help="Arduino COM port, e.g. COM5")
-    parser.add_argument("--token", required=True, help="Private pairing token; use the same token on the website")
-    parser.add_argument("--listen", default="0.0.0.0")
-    parser.add_argument("--web-port", type=int, default=8765)
+    parser.add_argument("--server", default=DEFAULT_SERVER)
+    parser.add_argument("--room", help="Room code; if omitted, you will be prompted")
     args = parser.parse_args()
-
+    room = (args.room or input("Enter the room code shown on your phone: ")).strip().upper()
+    if not 4 <= len(room) <= 24 or not all(c.isalnum() or c in "_-" for c in room):
+        print("Room code must be 4–24 letters, numbers, underscores or hyphens.")
+        return
     try:
         board = serial.Serial(args.port, 9600, timeout=0.1, write_timeout=1)
     except Exception as exc:
         print(f"Could not open {args.port}: {exc}")
         return
-
-    print(f"Arduino ready on {args.port}. Bridge listening on port {args.web_port}.")
-    print("Keep this window open. Press Ctrl+C to stop.")
-
-    async def handler(ws):
-        try:
-            raw = await asyncio.wait_for(ws.recv(), timeout=10)
+    url = args.server.rstrip("/") + "/room/" + room + "?role=device"
+    print(f"Arduino ready on {args.port}. Joining room {room}...")
+    print("Keep this window open while controlling the servo from your phone.")
+    try:
+        while True:
             try:
-                auth = json.loads(raw)
-            except Exception:
-                await ws.close(code=1008, reason="Pairing required")
-                return
-            if auth.get("type") != "auth" or auth.get("token") != args.token:
-                await ws.close(code=1008, reason="Incorrect pairing token")
-                return
-            await ws.send(json.dumps({"type": "ready", "message": "Arduino bridge connected"}))
-            async for message in ws:
-                try:
-                    data = json.loads(message)
-                    command = str(data.get("command", "")).strip()
-                    allowed = command in ("STOP", "SWEEP:START", "SWEEP:STOP") or command.startswith("ANGLE:") or command.startswith("SPEED:")
-                    if not allowed:
-                        continue
-                    if command.startswith("ANGLE:"):
-                        value = int(command[6:])
-                        if not 0 <= value <= 180: continue
-                    if command.startswith("SPEED:"):
-                        value = int(command[6:])
-                        if not 1 <= value <= 180: continue
-                    board.write((command + "\n").encode("ascii"))
-                except (ValueError, TypeError, serial.SerialException):
-                    continue
+                async with websockets.connect(url, ping_interval=20, ping_timeout=20, max_size=2048) as ws:
+                    await ws.send(json.dumps({"type": "device-status", "message": "Arduino connected to room"}))
+                    print("Connected! Your phone can now control the servo.")
+                    async for raw in ws:
+                        try:
+                            data = json.loads(raw)
+                            if data.get("type") == "command":
+                                command = str(data.get("command", "")).strip()
+                                if valid_command(command):
+                                    board.write((command + "\\n").encode("ascii"))
+                        except (ValueError, TypeError, serial.SerialException):
+                            continue
+            except (OSError, websockets.WebSocketException) as exc:
+                print(f"Room connection lost ({exc}). Reconnecting in 4 seconds...")
+                await asyncio.sleep(4)
+    except KeyboardInterrupt:
+        print("\\nDisconnecting...")
+    finally:
+        try:
+            board.write(b"STOP\\n")
+            board.close()
         except Exception:
             pass
 
-    async with serve(handler, args.listen, args.web_port, origins=None, max_size=2048):
-        await asyncio.Future()
-
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\nBridge stopped.")
+    asyncio.run(main())
