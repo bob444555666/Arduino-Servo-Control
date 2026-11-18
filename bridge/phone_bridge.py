@@ -52,17 +52,17 @@ async def main():
                             if data.get("type") == "command":
                                 command = str(data.get("command", "")).strip()
                                 if valid_command(command):
-                                    board.write((command + "\\n").encode("ascii"))
+                                    board.write((command + "\n").encode("ascii"))
                         except (ValueError, TypeError, serial.SerialException):
                             continue
             except (OSError, websockets.WebSocketException) as exc:
                 print(f"Room connection lost ({exc}). Reconnecting in 4 seconds...")
                 await asyncio.sleep(4)
     except KeyboardInterrupt:
-        print("\\nDisconnecting...")
+        print("\nDisconnecting...")
     finally:
         try:
-            board.write(b"STOP\\n")
+            board.write(b"STOP\n")
             board.close()
         except Exception:
             pass
