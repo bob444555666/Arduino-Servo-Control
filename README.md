@@ -1,44 +1,44 @@
-# Arduino Servo Control
+# Arduino Positional Servo Control
 
-A browser-based USB controller for an Arduino Mega and a **continuous-rotation servo** connected to digital pin 33.
+A browser-based USB controller for a **standard positional servo** connected to Arduino Mega digital pin **33**.
 
 ## Features
-
-- Connect/disconnect using the browser's Web Serial API
-- Start clockwise, start reverse, and stop
-- Live speed slider from 0% to 100%
-- No server, API key, or Cloudflare Worker required
+- Browser USB connection through Web Serial
+- Set an angle from 0° to 180°, with left/center/right presets
+- Adjustable movement rate from 1°/second to 180°/second
+- Automatic back-and-forth sweep
+- Stop movement and hold the current position
+- No server, API key, or Cloudflare Worker required for serial control
 
 ## 1. Wiring
 
-| Servo wire | Connect to |
+| Servo wire (common colors) | Connect to |
 |---|---|
-| Signal (often orange/yellow/white) | Mega digital pin 33 |
-| Ground (often brown/black) | Mega GND |
-| Power (often red) | Regulated 5V supply |
+| Signal (orange/yellow/white) | Mega digital pin 33 |
+| Ground (brown/black) | Mega GND |
+| Power (red) | Suitable regulated 5V supply |
 
-**Power warning:** Do not power a high-current servo from the Mega's 5V pin. Use a separate regulated 5V supply rated for the servo's stall/current requirements, and connect that supply's GND to Arduino GND (common ground). Check your servo's voltage rating before connecting it.
+**Power warning:** A servo can draw more current than the Mega's 5V pin can safely provide. For most servos, use a separate regulated 5V supply rated for its current requirements. Connect the external supply GND to Arduino GND (common ground). Check the servo's voltage rating before powering it.
 
-## 2. Upload the Arduino code
-
+## 2. Upload the Arduino sketch
 1. Open `arduino/servo_controller.ino` in the Arduino IDE.
-2. Select **Arduino Mega or Mega 2560** and the correct USB port.
-3. Install the built-in **Servo** library if your IDE does not already have it.
+2. Select **Arduino Mega or Mega 2560** and its USB port.
+3. Make sure the Arduino **Servo** library is installed.
 4. Upload the sketch.
-5. Close the Arduino IDE Serial Monitor. The website needs exclusive access to the serial port.
+5. Close the Arduino IDE Serial Monitor before using the website.
 
-## 3. Open the website
+## 3. Use the website
+Open the deployed Cloudflare Pages site or `index.html` in desktop Google Chrome or Microsoft Edge. Web Serial requires a Chromium-based desktop browser and a secure context (HTTPS or localhost).
 
-Open `index.html` in a current desktop version of Google Chrome or Microsoft Edge. Web Serial is supported on Chromium-based desktop browsers and requires a secure context (HTTPS or localhost). Click **Connect Arduino**, select the Mega's serial port, then use the direction and stop controls.
+1. Click **Connect Arduino** and select the Mega's serial port.
+2. Choose a target angle or use Left, Center, and Right presets.
+3. Set the movement speed in degrees per second.
+4. Click **Move to angle**, or use **Start auto sweep**.
+5. Click **Stop movement** to stop and hold the current position.
 
-If opening the file directly is blocked by your browser, serve this folder on localhost (for example, with the VS Code Live Server extension) or deploy it to a static HTTPS host such as Cloudflare Pages.
+If opening the HTML file directly is blocked, serve the folder on localhost (for example, VS Code Live Server) or use the Cloudflare Pages HTTPS deployment.
 
-## Servo type note
+## Servo range and speed notes
+This sketch is for a **standard positional servo**, not a continuous-rotation servo. It uses `Servo.write(angle)` and steps the commanded angle gradually. The speed control sets the rate of angle changes; it does not guarantee a physical speed. Actual movement depends on the servo model, supply, load, and mechanics.
 
-This project controls **continuous-rotation servos**. These interpret the control pulse as direction and speed. A normal positional servo interprets it as an angle and cannot spin continuously. For a positional servo, the control interface and sketch need to be changed to set an angle instead.
-
-## Speed calibration
-
-100% sends the configured endpoint pulse (default 2000µs clockwise and 1000µs reverse). Actual speed is limited by the servo's motor, load, supply voltage/current, and mechanics. If it creeps when stopped, adjust `STOP_US` slightly (for example, 1490 or 1510). If the direction labels are opposite, swap the CW and CCW endpoint values.
-
-Test at low speed first, with the servo unloaded and securely mounted. Do not force the shaft or exceed the servo's rated voltage or mechanical load.
+Although the UI range is 0°–180°, some servos have a smaller safe mechanical range. Start near 90° and test small movements first. Reduce the range if the servo strains, buzzes, heats up, or pushes against its end stops. Never force the shaft or exceed the servo's rated voltage or load.
