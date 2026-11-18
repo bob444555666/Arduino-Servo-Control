@@ -49,7 +49,7 @@ async def main():
                     if command.startswith("SPEED:"):
                         value = int(command[6:])
                         if not 1 <= value <= 180: continue
-                    board.write((command + "\\n").encode("ascii"))
+                    board.write((command + "\n").encode("ascii"))
                 except (ValueError, TypeError, serial.SerialException):
                     continue
         except Exception:
@@ -62,4 +62,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\\nBridge stopped.")
+        print("\nBridge stopped.")
